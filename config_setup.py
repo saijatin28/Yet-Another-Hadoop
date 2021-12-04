@@ -25,7 +25,6 @@ def createNewDFS():
     defaultConfig['datanode_log_path'] = 'GlobalFS/'+str(fileNo+1)+'/DATANODE/LOGS'
     defaultConfig['namenode_log_path'] = 'GlobalFS/'+str(fileNo+1)+'/NAMENODE/log.json'
     defaultConfig['namenode_checkpoints'] = 'GlobalFS/'+str(fileNo+1)+'/NAMENODE/CHECKPOINTS'
-    defaultConfig['fs_path'] = 'GlobalFS/'+str(fileNo+1)+'/FS'
     defaultConfig['dfs_setup_config'] = newDFSConfigFile
     
     with open(newDFSConfigFile, "w") as outfile:
@@ -33,17 +32,21 @@ def createNewDFS():
     
     # create the required folders and files
     for attr in defaultConfig:
-        if ('path' in attr or 'checkpoints' in attr) and attr != 'namenode_log_path':
+        if ('path' in attr or 'checkpoints' in attr) and attr != 'namenode_log_path' and attr != 'fs_path':
             os.makedirs(defaultConfig[attr])   
     
     open(defaultConfig['namenode_log_path'], 'w')
+    
     for i in range(defaultConfig['num_datanodes']):
         open(defaultConfig['path_to_datanodes']+'/DNODE'+str(i+1), 'w')
+    
+    for i in range(defaultConfig['num_datanodes']):
+        open(defaultConfig['datanode_log_path']+'/DNODE'+str(i+1)+'LOG.txt', 'w')
 
     print('New DFS created, the config file is named dfs_setup_config'+str(fileNo+1)+'.json')
     print('Pass the above filename as command line argument the next time')
 
-    return 'GlobalFS/'+str(fileNo+1)
+    return ['GlobalFS/'+str(fileNo+1), newDFSConfigFile]
 
 def config_setup():
     
@@ -51,9 +54,11 @@ def config_setup():
         # verify if it exists
         try:
             f = open(sys.argv[1])
-            pathToDfs = json.load(f)['path_to_namenodes']
+            folderName = int(sys.argv[1].split('dfs_setup_config')[1].split('.json')[0])
+            pathToDfs = ['GlobalFS/'+str(folderName) ,sys.argv[1]]
 
-        except:
+        except Exception as e:
+            print(e)
             print('Config file does not exist. Creating new dfs with default settings')
             pathToDfs = createNewDFS()
 
