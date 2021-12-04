@@ -1,8 +1,8 @@
 import json
 
-def ls(file, curDir):
+def ls(file, dir):
     fs = json.load(open(file))['fs']
-    curDir = curDir.split('/')[1:]
+    curDir = dir.split('/')[1:]
     
     for dir in curDir:
         if dir:
@@ -13,6 +13,21 @@ def ls(file, curDir):
     for file in fs:
         print(file)
 
+def mkdir(file, dir):
+    obj = json.load(open(file))
+    fs = obj['fs']
+    homeFS = fs
+    curDir = dir.split('/')[1:]
+
+    for dir in curDir:
+        if dir not in fs:
+            fs[dir] = {}
+        fs = fs[dir]
+
+    obj['fs'] = homeFS
+
+    with open(file, "w") as outfile:
+        json.dump(obj, outfile)
 
 def run(path):
     folderName = path[0]
@@ -34,7 +49,8 @@ def run(path):
             ls(logFile, action[1])
         
         elif action[0] == 'mkdir':
-            pass
+            mkdir(logFile, action[1])
+
         elif action[0] == 'put':
             pass
         elif action[0] == 'cat':
