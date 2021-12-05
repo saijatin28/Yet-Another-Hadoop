@@ -4,15 +4,19 @@ def ls(file, dir):
     fs = json.load(open(file))['fs']
     curDir = dir.split('/')[1:]
     
-    for dir in curDir:
-        if dir in fs:
-            fs = fs[dir]
-        else:
-            break
+    try:
+        for dir in curDir:
+            if dir:
+                fs = fs[dir]
+            else:
+                break
+        for file in fs:
+            print(file)
     
-    for file in fs:
-        print(file)
+    except Exception as e:
+        print("Directory does not exist")    
 
+        
 def mkdir(file, dir):
     obj = json.load(open(file))
     fs = obj['fs']
@@ -132,3 +136,5 @@ def run(path):
 
         elif action[0] == 'rmdir':
             pass
+        elif action[0] == 'exit':
+            break
