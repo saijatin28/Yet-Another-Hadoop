@@ -18,7 +18,6 @@ def mkdir(file, dir):
     fs = obj['fs']
     homeFS = fs
     curDir = dir.split('/')[1:]
-    print(curDir)
 
     for dir in curDir:
         if dir not in fs:
@@ -69,25 +68,32 @@ def run(path):
             
             nameNodeData = json.load(open(logFile))
             replication_factor = configFile['replication_factor']
+            
             curDataNode = nameNodeData['lastEnteredDataNode'] + 1
+            if curDataNode > numDatanodes:
+                curDataNode = 1
+
             files = nameNodeData['files']
             datanodesMeta = nameNodeData['datanodes'] 
-            dst = dst.split('/')[-1]
-            files[dst] = []
+            fileName = src.split('/')[-1]
 
             # check if file with same name exists already
-            if dst in files:
+            if fileName in files:
                 print('File with same name already exists.')
                 continue
-            
+
+            files[fileName] = []
             # breakup the src file into blocks, size(in kb) given in config file
             with open(src) as f:
-                chunk = f.read(blockSize*1024)
+                chunk = f.read(1024*blockSize)
+                placed = True
                 while chunk:
                     for i in range(replication_factor):
-                        if datanodesMeta[curDataNode] == 0:
+                        if datanodesMeta[str(curDataNode)] == 0:
                             print('No space remaining. Deleting the file')
-                            rm(dst)
+                            #rm(fileName)
+                            placed = False
+                            break
 
                         datanode = folderName+'/DATANODE/DNODE'+str(curDataNode)
                         openDataNode = open(datanode, 'a')
@@ -96,14 +102,27 @@ def run(path):
                         openDataNode.write(chunk)
                         end = openDataNode.tell()-1
                         
-                        files[dst].append({curDataNode: [start, end]})
-                        datanodesMeta[curDataNode] -= 1
-                        
+                        files[fileName].append({str(curDataNode): [start, end]})
+                        datanodesMeta[str(curDataNode)] -= 1
+
                         curDataNode += 1
                         if curDataNode == numDatanodes+1:
                             curDataNode = 1
 
-                    chunk = f.read(blockSize*1024)
+                    if not placed:
+                        break
+
+                    chunk = f.read(1024*blockSize)
+            
+            if placed:
+                mkdir(logFile, dst+'/'+fileName)                
+            
+            if curDataNode == 1:
+                curDataNode = numDatanodes
+
+            fs = json.load(open(logFile))['fs']
+            with open(logFile, "w") as outfile:
+                json.dump({'fs':fs, 'files':files , 'datanodes':datanodesMeta, 'lastEnteredDataNode':curDataNode-1}, outfile)
 
         elif action[0] == 'cat':
             pass
