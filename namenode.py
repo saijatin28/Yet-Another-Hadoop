@@ -90,7 +90,7 @@ def run(path):
             files[fileName] = []
             # breakup the src file into blocks, size(in kb) given in config file
             with open(src) as f:
-                chunk = f.read(1)
+                chunk = f.read(1024*blockSize)
                 placed = True
                 while chunk:
                     for i in range(replication_factor):
@@ -118,7 +118,7 @@ def run(path):
                     if not placed:
                         break
 
-                    chunk = f.read(1)
+                    chunk = f.read(1024*blockSize)
             
             if placed:
                 mkdir(logFile, fileName)                
