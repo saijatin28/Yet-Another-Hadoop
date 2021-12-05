@@ -79,7 +79,7 @@ def run(path):
 
             files = nameNodeData['files']
             datanodesMeta = nameNodeData['datanodes'] 
-            fileName = src.split('/')[-1]
+            fileName = dst+'/'+src.split('/')[-1]
 
             # check if file with same name exists already
             if fileName in files:
@@ -119,7 +119,7 @@ def run(path):
                     chunk = f.read(1024*blockSize)
             
             if placed:
-                mkdir(logFile, dst+'/'+fileName)                
+                mkdir(logFile, fileName)                
             
             if curDataNode == 1:
                 curDataNode = numDatanodes
