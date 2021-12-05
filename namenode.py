@@ -44,6 +44,8 @@ def run(path):
     blockSize = configFile['block_size']
     numDatanodes = configFile['num_datanodes']
     datanodeSize = configFile['datanode_size']
+    replication_factor = configFile['replication_factor']
+
 
     # if the logFile was never populated, set it up
     try:
@@ -71,7 +73,6 @@ def run(path):
             dst = action[2]
             
             nameNodeData = json.load(open(logFile))
-            replication_factor = configFile['replication_factor']
             
             curDataNode = nameNodeData['lastEnteredDataNode'] + 1
             if curDataNode > numDatanodes:
@@ -89,7 +90,7 @@ def run(path):
             files[fileName] = []
             # breakup the src file into blocks, size(in kb) given in config file
             with open(src) as f:
-                chunk = f.read(1024*blockSize)
+                chunk = f.read(1)
                 placed = True
                 while chunk:
                     for i in range(replication_factor):
@@ -105,6 +106,7 @@ def run(path):
                         start = openDataNode.tell()
                         openDataNode.write(chunk)
                         end = openDataNode.tell()-1
+                        openDataNode.close()
                         
                         files[fileName].append({str(curDataNode): [start, end]})
                         datanodesMeta[str(curDataNode)] -= 1
@@ -116,7 +118,7 @@ def run(path):
                     if not placed:
                         break
 
-                    chunk = f.read(1024*blockSize)
+                    chunk = f.read(1)
             
             if placed:
                 mkdir(logFile, fileName)                
@@ -129,7 +131,28 @@ def run(path):
                 json.dump({'fs':fs, 'files':files , 'datanodes':datanodesMeta, 'lastEnteredDataNode':curDataNode-1}, outfile)
 
         elif action[0] == 'cat':
-            pass
+            fileName = action[1]
+            files = json.load(open(logFile))['files']
+
+            if fileName not in files:
+                print('File does not exist.')
+                continue
+
+            # extract file, but keep in mind the replication factor and the way the file is stored
+            fileMeta = files[fileName]
+
+            for i in range(0, len(fileMeta), replication_factor):
+                # open the datanode at idx i and and read in
+                datanode = list(fileMeta[i].keys())[0]
+                start = fileMeta[i][datanode][0]
+                end = fileMeta[i][datanode][1]
+                
+                f = open(folderName+'/DATANODE/DNODE'+str(datanode))
+                f.seek(start, 0)
+                print(f.read(end-start+1),end='')
+                f.close()
+
+            print()
 
         elif action[0] == 'rm':
             pass
