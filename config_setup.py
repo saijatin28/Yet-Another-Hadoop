@@ -15,6 +15,18 @@ def getLastDFSConfFile():
 
     return maxi
 
+def display(path):
+    f = json.load(open(path))
+    keys =  list(f.keys())
+    
+    print('Here is your configuration:')
+    
+    for key in keys:
+        print(key + ':' + str(f[key]))
+    
+    print()
+    print('You can now start manipulating your dfs')
+
 def createNewDFS():
     fileNo = getLastDFSConfFile()
     newDFSConfigFile = 'dfs_setup_config'+str(fileNo+1)+'.json'
@@ -45,6 +57,30 @@ def createNewDFS():
 
     print('New DFS created, the config file is named dfs_setup_config'+str(fileNo+1)+'.json')
     print('Pass the above filename as command line argument the next time')
+    
+    print()
+    print('Would you like to format your namenode? (y/n)')
+    ans = input()
+    if ans == 'y':
+        
+        # delete namenode
+        f = open('GlobalFS/'+str(fileNo+1)+'/NAMENODE/log.json', 'w')
+        f.truncate(0)
+        f.close()
+
+        # delete datanodes
+        for i in range(defaultConfig['num_datanodes']):
+            f = open(defaultConfig['path_to_datanodes']+'/DNODE'+str(i+1), 'w')
+            f.truncate(0)
+            f.close()
+
+            f = open(defaultConfig['datanode_log_path']+'/DNODE'+str(i+1)+'LOG.txt', 'w')
+            f.truncate(0)
+            f.close()    
+        
+        print('formatted successfully')
+    else:
+        print('not formatting namenode')
 
     return ['GlobalFS/'+str(fileNo+1), newDFSConfigFile]
 
@@ -57,14 +93,14 @@ def config_setup():
             folderName = int(sys.argv[1].split('dfs_setup_config')[1].split('.json')[0])
             pathToDfs = ['GlobalFS/'+str(folderName) ,sys.argv[1]]
 
-        except Exception as e:
-            print(e)
+        except:
             print('Config file does not exist. Creating new dfs with default settings')
             pathToDfs = createNewDFS()
 
     else:
         pathToDfs = createNewDFS()
     
+    display(pathToDfs[1])
     namenode.run(pathToDfs)
 
 config_setup()
