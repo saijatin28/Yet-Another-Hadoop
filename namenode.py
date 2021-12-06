@@ -239,6 +239,104 @@ def heartbeat(folderName):
 
     for prob in report:
         print(prob)
+        
+def put(logFile,src,dst,replication_factor,folderName,path,numDatanodes,blockSize):    
+    try:
+        nameNodeData = json.load(open(logFile))
+    except:
+        shutil.copyfile(path,logFile)
+        nameNodeData = json.load(open(logFile))
+                
+    curDataNode = nameNodeData['lastEnteredDataNode'] + 1
+    if curDataNode > numDatanodes:
+         curDataNode = 1
+
+    files = nameNodeData['files']
+    datanodesMeta = nameNodeData['datanodes'] 
+    fileName = dst+'/'+src.split('/')[-1]
+
+    # check if file with same name exists already
+    if fileName in files:
+        print('File with same name already exists.')
+        return
+
+    files[fileName] = []
+    # breakup the src file into blocks, size(in kb) given in config file
+    with open(src) as f:
+        chunk = f.read(1024*blockSize)
+        placed = True
+        while chunk:
+            for i in range(replication_factor):
+                if datanodesMeta[str(curDataNode)] == 0:
+                    print('No space remaining. Deleting the file')                            
+                    rm(logFile, fileName, replication_factor, folderName)
+                    placed = False
+                    break
+
+                datanode = folderName+'/DATANODE/DNODE'+str(curDataNode)
+                openDataNode = open(datanode, 'a')
+                        
+                start = openDataNode.tell()
+                openDataNode.write(chunk)
+                end = openDataNode.tell()-1
+                openDataNode.close()
+                        
+                # datanode log must contain filename and which block of the file is stored in it 
+                addDNodeLog(fileName, folderName, curDataNode, start, end)
+
+                files[fileName].append({str(curDataNode): [start, end]})
+                datanodesMeta[str(curDataNode)] -= 1
+
+                curDataNode += 1
+                if curDataNode == numDatanodes+1:
+                    curDataNode = 1
+
+            if not placed:
+                break
+
+            chunk = f.read(1024*blockSize)
+            
+    if placed:
+        mkdir(logFile, fileName, path)                
+        print("File added")
+        fs = json.load(open(logFile))['fs']
+        if curDataNode == 1:
+            curDataNode = numDatanodes
+        with open(logFile, "w") as outfile:
+            json.dump({'fs':fs, 'files':files , 'datanodes':datanodesMeta, 'lastEnteredDataNode':curDataNode-1}, outfile)
+ 
+
+def cat(logFile,fileName,replication_factor,folderName,path):
+    try:
+        files = json.load(open(logFile))['files']
+    except:
+        shutil.copyfile(path,logFile)
+        files = json.load(open(logFile))['files']
+                
+    if fileName not in files:
+        print('File does not exist.\n')
+        return
+
+    # extract file, but keep in mind the replication factor and the way the file is stored
+    fileMeta = files[fileName]
+    tf = open("file.txt","a")
+    tf.seek(0)
+    tf.truncate(0)
+            
+    for i in range(0, len(fileMeta), replication_factor):
+        # open the datanode at idx i and and read in
+        datanode = list(fileMeta[i].keys())[0]
+        start = fileMeta[i][datanode][0]
+        end = fileMeta[i][datanode][1]
+                
+        f = open(folderName+'/DATANODE/DNODE'+str(datanode))
+        f.seek(start, 0)
+        line = f.read(end-start+1)
+        print(line,end='')
+        tf.write(line)
+        f.close()
+    tf.close()
+
 
 def run(path):
     folderName = path[0]
@@ -293,102 +391,13 @@ def run(path):
             print("Directory Created\n")
 
         elif action[0] == 'put':
-            src = action[1]
-            dst = action[2]
+            put(logFile,action[1],action[2],replication_factor,folderName,path,numDatanodes,blockSize)
+            print("File added\n")
             
-            try:
-                nameNodeData = json.load(open(logFile))
-            except:
-                shutil.copyfile(path,logFile)
-                nameNodeData = json.load(open(logFile))
-                
-            curDataNode = nameNodeData['lastEnteredDataNode'] + 1
-            if curDataNode > numDatanodes:
-                curDataNode = 1
-
-            files = nameNodeData['files']
-            datanodesMeta = nameNodeData['datanodes'] 
-            fileName = dst+'/'+src.split('/')[-1]
-
-            # check if file with same name exists already
-            if fileName in files:
-                print('File with same name already exists.')
-                continue
-
-            files[fileName] = []
-            # breakup the src file into blocks, size(in kb) given in config file
-            with open(src) as f:
-                chunk = f.read(1024*blockSize)
-                placed = True
-                while chunk:
-                    for i in range(replication_factor):
-                        if datanodesMeta[str(curDataNode)] == 0:
-                            print('No space remaining. Deleting the file')                            
-                            rm(logFile, fileName, replication_factor, folderName)
-                            placed = False
-                            break
-
-                        datanode = folderName+'/DATANODE/DNODE'+str(curDataNode)
-                        openDataNode = open(datanode, 'a')
-                        
-                        start = openDataNode.tell()
-                        openDataNode.write(chunk)
-                        end = openDataNode.tell()-1
-                        openDataNode.close()
-                        
-                        # datanode log must contain filename and which block of the file is stored in it 
-                        addDNodeLog(fileName, folderName, curDataNode, start, end)
-
-                        files[fileName].append({str(curDataNode): [start, end]})
-                        datanodesMeta[str(curDataNode)] -= 1
-
-                        curDataNode += 1
-                        if curDataNode == numDatanodes+1:
-                            curDataNode = 1
-
-                    if not placed:
-                        break
-
-                    chunk = f.read(1024*blockSize)
-            
-            if placed:
-                mkdir(logFile, fileName, path)                
-                print("File added")
-                fs = json.load(open(logFile))['fs']
-                if curDataNode == 1:
-                    curDataNode = numDatanodes
-                with open(logFile, "w") as outfile:
-                    json.dump({'fs':fs, 'files':files , 'datanodes':datanodesMeta, 'lastEnteredDataNode':curDataNode-1}, outfile)
-        
-
         elif action[0] == 'cat':
-            fileName = action[1]
-            try:
-                files = json.load(open(logFile))['files']
-            except:
-                shutil.copyfile(path,logFile)
-                files = json.load(open(logFile))['files']
-                
-            if fileName not in files:
-                print('File does not exist.\n')
-                continue
-
-            # extract file, but keep in mind the replication factor and the way the file is stored
-            fileMeta = files[fileName]
-
-            for i in range(0, len(fileMeta), replication_factor):
-                # open the datanode at idx i and and read in
-                datanode = list(fileMeta[i].keys())[0]
-                start = fileMeta[i][datanode][0]
-                end = fileMeta[i][datanode][1]
-                
-                f = open(folderName+'/DATANODE/DNODE'+str(datanode))
-                f.seek(start, 0)
-                print(f.read(end-start+1),end='')
-                f.close()
-
+            cat(logFile,action[1],replication_factor,folderName,path)
             print()
-
+        
         elif action[0] == 'rm':
             rm(logFile,action[1],replication_factor,folderName,path)
 
@@ -397,5 +406,6 @@ def run(path):
             
         elif action[0] == 'exit':
             break          
+        
         else:
             print("Enter valid command\n")
