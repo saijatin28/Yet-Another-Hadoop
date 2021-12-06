@@ -1,4 +1,5 @@
 import json
+from os import name
 import shutil
 import sched
 import time
@@ -202,6 +203,42 @@ def delDNodeLog(fileName, logFile, folderName):
             with open(dlogFile, 'w') as outfile:
                 json.dump(obj, outfile)
 
+def heartbeat(folderName):
+    # validate data in datanodelogs and namenodelogs
+    nameNodeLog = folderName+'/NAMENODE/log.json'
+    obj = json.load(open(nameNodeLog))
+    
+    namenodeFiles = obj['files']
+    numDataNodes = len(obj['datanodes'])
+    report = []
+    
+    # to be matched with data stored in datanodes
+    datanodeMeta = {}
+
+    for file in namenodeFiles:
+        for data in namenodeFiles[file]:
+            dNode = list(data.keys())[0]
+            if dNode not in datanodeMeta:
+                datanodeMeta[dNode] = {}
+            if file not in datanodeMeta[dNode]:
+                datanodeMeta[dNode][file] = [[data[dNode][0], data[dNode][1]]]
+            else:
+                datanodeMeta[dNode][file].append([data[dNode][0], data[dNode][1]])
+
+    for i in range(1, numDataNodes+1):
+        # check if each datanode exists
+        try:
+            open(folderName+'/DATANODE/DNODE'+str(i))
+            obj = json.load(open(folderName+'/DATANODE/LOGS/DNODE'+str(i)+'LOG.json'))
+            if str(i) in datanodeMeta:
+                if datanodeMeta[str(i)] != obj:
+                    report.append('DNODE'+str(i)+' is corrupted')
+        except:
+            report.append('DNODE'+str(i)+' is unavailable')
+
+    for prob in report:
+        print(prob)
+
 def run(path):
     folderName = path[0]
     configFile = json.load(open(path[1]))
@@ -239,6 +276,7 @@ def run(path):
         if action[0] == 'ls':
             ls(logFile, action[1],path)
             print()
+            heartbeat(folderName)
         
         elif action[0] == 'mkdir':
             mkdir(logFile, action[1],path)
@@ -304,7 +342,7 @@ def run(path):
                     chunk = f.read(1024*blockSize)
             
             if placed:
-                mkdir(logFile, fileName)                
+                mkdir(logFile, fileName, path)                
                 print("File added")
                 fs = json.load(open(logFile))['fs']
                 if curDataNode == 1:
