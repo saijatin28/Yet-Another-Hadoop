@@ -90,8 +90,11 @@ def remove_file(logFile,fileName,replication_factor,folderName):
         return
     fileMeta = files[fileName]
     
+    delDNodeLog(fileName, logFile, folderName)
+
     for i in range(replication_factor):
         temp = open('temp.txt',"a")
+        temp.seek(0)
         temp.truncate(0)
         datanode = list(fileMeta[i].keys())[0]
         start = fileMeta[i][datanode][0]
@@ -144,6 +147,31 @@ def rmdir(logFile,path):
             json.dump({'fs':f['fs'], 'files':f['files'] , 'datanodes':f['datanodes'], 'lastEnteredDataNode':f['lastEnteredDataNode']}, outfile)
         print("Directory has been deleted\n")
 
+def addDNodeLog(fileName, folderName, dNode, start, end):
+    logFile = folderName+'/DATANODE/LOGS/DNODE'+str(dNode)+'LOG.json'
+    
+    f = json.load(open(logFile))
+    
+    if fileName in f:
+        f[fileName].append((start, end))
+    else:
+        f[fileName] = [(start, end)]
+    
+    with open(logFile, 'w') as op:
+        json.dump(f, op)   
+
+def delDNodeLog(fileName, logFile, folderName):
+    # potentially every dnode may contain a part of this file
+    # scan the logs and remove from there
+    numDataNodes = len(json.load(open(logFile))['datanodes'])
+    for i in range(1, numDataNodes+1):
+        dlogFile = folderName+'/DATANODE/LOGS/DNODE'+str(i)+'LOG.json'
+        # delete the file from this dnodelog
+        obj = json.load(open(dlogFile))
+        if fileName in obj:
+            del obj[fileName]
+            with open(dlogFile, 'w') as outfile:
+                json.dump(obj, outfile)
 
 def run(path):
     folderName = path[0]
@@ -166,6 +194,11 @@ def run(path):
                     datanodes[i+1] = datanodeSize
 
                 json.dump({'fs':{}, 'files':{}, 'datanodes':datanodes, 'lastEnteredDataNode':0}, outfile)
+            
+            # populate all datanode log files 
+            for i in range(1, numDatanodes+1):
+                with open(folderName+'/DATANODE/LOGS/DNODE'+str(i)+'LOG.json', 'w') as outfile:
+                    json.dump({}, outfile)
 
     while True:
         action = input()
@@ -201,13 +234,13 @@ def run(path):
             files[fileName] = []
             # breakup the src file into blocks, size(in kb) given in config file
             with open(src) as f:
-                chunk = f.read(1024*blockSize)
+                chunk = f.read(1)
                 placed = True
                 while chunk:
                     for i in range(replication_factor):
                         if datanodesMeta[str(curDataNode)] == 0:
-                            print('No space remaining. Deleting the file')
-                            #rm(fileName)
+                            print('No space remaining. Deleting the file')                            
+                            rm(logFile, fileName, replication_factor, folderName)
                             placed = False
                             break
 
@@ -219,6 +252,9 @@ def run(path):
                         end = openDataNode.tell()-1
                         openDataNode.close()
                         
+                        # datanode log must contain filename and which block of the file is stored in it 
+                        addDNodeLog(fileName, folderName, curDataNode, start, end)
+
                         files[fileName].append({str(curDataNode): [start, end]})
                         datanodesMeta[str(curDataNode)] -= 1
 
@@ -229,19 +265,18 @@ def run(path):
                     if not placed:
                         break
 
-                    chunk = f.read(1024*blockSize)
+                    chunk = f.read(1)
             
             if placed:
                 mkdir(logFile, fileName)                
-            
-            if curDataNode == 1:
-                curDataNode = numDatanodes
+                print("File added")
+                fs = json.load(open(logFile))['fs']
+                if curDataNode == 1:
+                    curDataNode = numDatanodes
+                with open(logFile, "w") as outfile:
+                    json.dump({'fs':fs, 'files':files , 'datanodes':datanodesMeta, 'lastEnteredDataNode':curDataNode-1}, outfile)
+        
 
-            fs = json.load(open(logFile))['fs']
-            with open(logFile, "w") as outfile:
-                json.dump({'fs':fs, 'files':files , 'datanodes':datanodesMeta, 'lastEnteredDataNode':curDataNode-1}, outfile)
-            print("File added\n")
-            
         elif action[0] == 'cat':
             fileName = action[1]
             files = json.load(open(logFile))['files']

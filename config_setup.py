@@ -53,7 +53,7 @@ def createNewDFS():
         open(defaultConfig['path_to_datanodes']+'/DNODE'+str(i+1), 'w')
     
     for i in range(defaultConfig['num_datanodes']):
-        open(defaultConfig['datanode_log_path']+'/DNODE'+str(i+1)+'LOG.txt', 'w')
+        open(defaultConfig['datanode_log_path']+'/DNODE'+str(i+1)+'LOG.json', 'w')
 
     print('New DFS created, the config file is named dfs_setup_config'+str(fileNo+1)+'.json')
     print('Pass the above filename as command line argument the next time')
@@ -74,7 +74,7 @@ def createNewDFS():
             f.truncate(0)
             f.close()
 
-            f = open(defaultConfig['datanode_log_path']+'/DNODE'+str(i+1)+'LOG.txt', 'w')
+            f = open(defaultConfig['datanode_log_path']+'/DNODE'+str(i+1)+'LOG.json', 'w')
             f.truncate(0)
             f.close()    
         
