@@ -3,6 +3,7 @@ from os import name
 import shutil
 import sched
 import time
+from datetime import datetime
 
 def ls(file, dir,secondary):
     try:
@@ -247,6 +248,7 @@ def run(path):
     numDatanodes = configFile['num_datanodes']
     datanodeSize = configFile['datanode_size']
     replication_factor = configFile['replication_factor']
+    syncPeriod = configFile['sync_period']
     checkpoints = configFile['namenode_checkpoints']
     path = checkpoints+'/Secondary.txt'
     try:
@@ -266,17 +268,25 @@ def run(path):
             with open(path,"w") as s:
                 json.dump(json.load(open(logFile)),s)
 
-    while True:
-        with open(path,"w") as s:
+    heartbeat(folderName)
+    with open(path,"w") as s:
                 json.dump(json.load(open(logFile)),s)
-                
+    lastHeartBeat = datetime.now()
+
+    while True:
+        curTime = datetime.now()
+        if (curTime - lastHeartBeat).seconds >= syncPeriod:
+            with open(path,"w") as s:
+                json.dump(json.load(open(logFile)),s)
+            heartbeat(folderName)
+            lastHeartBeat = datetime.now()
+                    
         action = input()
         action = action.split()
         
         if action[0] == 'ls':
             ls(logFile, action[1],path)
             print()
-            heartbeat(folderName)
         
         elif action[0] == 'mkdir':
             mkdir(logFile, action[1],path)
