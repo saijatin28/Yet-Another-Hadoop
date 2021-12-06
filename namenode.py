@@ -1,11 +1,17 @@
 import json
 import shutil
+import sched
+import time
 
-def ls(file, dir):
-    fs = json.load(open(file))['fs']
-    curDir = dir.split('/')[1:]
+def ls(file, dir,secondary):
+    try:
+        fs = json.load(open(file))['fs']
+    except:
+        shutil.copyfile(secondary,file)
+        fs = json.load(open(file))['fs']
     
     try:
+        curDir = dir.split('/')[1:]
         for dir in curDir:
             if dir:
                 fs = fs[dir]
@@ -18,8 +24,12 @@ def ls(file, dir):
         print("Directory does not exist")    
 
         
-def mkdir(file, dir):
-    obj = json.load(open(file))
+def mkdir(file, dir,secondary):
+    try:
+        obj = json.load(open(file))
+    except:
+        shutil.copyfile(secondary,file)
+        obj = json.load(open(file))
     fs = obj['fs']
     homeFS = fs
     curDir = dir.split('/')[1:]
@@ -49,20 +59,24 @@ def update(files,fileName,start,end,l,d,r):
                         files[f][i][d][1] = e-l
 
 
-def rm(logFile,path,replication_factor,folderName):
-    fss = json.load(open(logFile))
+def rm(logFile,path,replication_factor,folderName,secondary):
+    try:
+        fss = json.load(open(logFile))
+    except:
+        shutil.copyfile(secondary,logFile)
+        fss = json.load(open(logFile))
     files = fss['files']
     files_copy = dict(files)
     t = fss['fs']
     datanodeMeta = fss['datanodes']
     try:
         if path in files:
-            datanodeMeta = remove_file(logFile,path,replication_factor,folderName)
+            datanodeMeta = remove_file(logFile,path,replication_factor,folderName,secondary)
             return 
         else:
             for f in files_copy:
                 if path in f:
-                    datanodeMeta = remove_file(logFile,f,replication_factor,folderName)
+                    datanodeMeta = remove_file(logFile,f,replication_factor,folderName,secondary)
                     del files[f]
                 #print(datanodeMeta)
                
@@ -82,9 +96,14 @@ def rm(logFile,path,replication_factor,folderName):
         print("File/Directory doesn't exist")
  
           
-def remove_file(logFile,fileName,replication_factor,folderName):
-    files = json.load(open(logFile))['files']
-    datanodeMeta = json.load(open(logFile))['datanodes']
+def remove_file(logFile,fileName,replication_factor,folderName,secondary):
+    try:
+        fs = json.load(open(logFile))
+    except:
+        shutil.copyfile(secondary,logFile)
+        fs = json.load(open(logFile))
+    files = fs['files']
+    datanodeMeta = fs['datanodes']
     if fileName not in files:
         print('File does not exist.\n')
         return
@@ -118,8 +137,13 @@ def remove_file(logFile,fileName,replication_factor,folderName):
         shutil.copyfile('temp.txt',folderName+'/DATANODE/DNODE'+str(datanode))
         
         datanodeMeta[str(datanode)] += 1
-        
-    f = json.load(open(logFile))
+    
+    try:    
+        f = json.load(open(logFile))
+    except:
+        shutil.copyfile(secondary,logFile)
+        f = json.load(open(logFile))
+    
     t = f['fs']
     last = f['lastEnteredDataNode']
     del files[fileName]
@@ -133,8 +157,13 @@ def remove_file(logFile,fileName,replication_factor,folderName):
     return datanodeMeta
 
 
-def rmdir(logFile,path):
-    f = json.load(open(logFile))
+def rmdir(logFile,path,secondary):
+    try:
+        f = json.load(open(logFile))
+    except:
+        shutil.copyfile(secondary,logFile)
+        f = json.load(open(logFile))
+        
     t = f['fs']
     cur = path.split('/')[1:-1]
     for d in cur:
@@ -177,14 +206,12 @@ def run(path):
     folderName = path[0]
     configFile = json.load(open(path[1]))
     logFile = folderName+'/NAMENODE/log.json'
-
     blockSize = configFile['block_size']
     numDatanodes = configFile['num_datanodes']
     datanodeSize = configFile['datanode_size']
     replication_factor = configFile['replication_factor']
-
-
-    # if the logFile was never populated, set it up
+    checkpoints = configFile['namenode_checkpoints']
+    path = checkpoints+'/Secondary.txt'
     try:
         json.load(open(logFile))
     except:
@@ -199,25 +226,34 @@ def run(path):
             for i in range(1, numDatanodes+1):
                 with open(folderName+'/DATANODE/LOGS/DNODE'+str(i)+'LOG.json', 'w') as outfile:
                     json.dump({}, outfile)
+            with open(path,"w") as s:
+                json.dump(json.load(open(logFile)),s)
 
     while True:
+        with open(path,"w") as s:
+                json.dump(json.load(open(logFile)),s)
+                
         action = input()
         action = action.split()
         
         if action[0] == 'ls':
-            ls(logFile, action[1])
+            ls(logFile, action[1],path)
             print()
         
         elif action[0] == 'mkdir':
-            mkdir(logFile, action[1])
+            mkdir(logFile, action[1],path)
             print("Directory Created\n")
 
         elif action[0] == 'put':
             src = action[1]
             dst = action[2]
             
-            nameNodeData = json.load(open(logFile))
-            
+            try:
+                nameNodeData = json.load(open(logFile))
+            except:
+                shutil.copyfile(path,logFile)
+                nameNodeData = json.load(open(logFile))
+                
             curDataNode = nameNodeData['lastEnteredDataNode'] + 1
             if curDataNode > numDatanodes:
                 curDataNode = 1
@@ -279,8 +315,12 @@ def run(path):
 
         elif action[0] == 'cat':
             fileName = action[1]
-            files = json.load(open(logFile))['files']
-
+            try:
+                files = json.load(open(logFile))['files']
+            except:
+                shutil.copyfile(path,logFile)
+                files = json.load(open(logFile))['files']
+                
             if fileName not in files:
                 print('File does not exist.\n')
                 continue
@@ -302,13 +342,12 @@ def run(path):
             print()
 
         elif action[0] == 'rm':
-            rm(logFile,action[1],replication_factor,folderName)
+            rm(logFile,action[1],replication_factor,folderName,path)
 
         elif action[0] == 'rmdir':
-            rmdir(logFile,action[1])
+            rmdir(logFile,action[1],path)
             
         elif action[0] == 'exit':
             break          
         else:
             print("Enter valid command\n")
-
