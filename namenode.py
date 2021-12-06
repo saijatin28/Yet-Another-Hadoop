@@ -1,4 +1,4 @@
-import json
+import json 
 from os import name
 import shutil
 import sched
@@ -55,7 +55,7 @@ def update(files,fileName,start,end,l,d,r):
                 if d == list(files[f][i].keys())[0]:
                     s = files[f][i][d][0]
                     e = files[f][i][d][1]
-                    if s > start:
+                    if s > start:"""checking"""
                         #print(start,end,s-l,e-l)
                         files[f][i][d][0] = s-l
                         files[f][i][d][1] = e-l
